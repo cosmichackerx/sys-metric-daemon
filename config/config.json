@@ -1,0 +1,10 @@
+{
+  "interval_seconds": 10,
+  "metrics": {
+    "cpu": true,
+    "memory": true,
+    "disk": true
+  },
+  "disk_path": "/",
+  "logging_level": "INFO"
+}
