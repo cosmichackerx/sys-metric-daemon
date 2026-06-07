@@ -1,63 +1,74 @@
-import asyncio
-import json
 import os
+import sys
 import time
+import json
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 class SystemMonitor:
-    def __init__(self, interval=5.0):
+    def __init__(self, interval=60):
         self.interval = interval
-        self.running = False
-
-    async def get_cpu_usage(self):
-        if os.path.exists('/proc/stat'):
-            with open('/proc/stat', 'r') as f:
-                lines = f.readlines()
-            for line in lines:
-                if line.startswith('cpu '):
-                    parts = [float(x) for x in line.split()[1:]]
-                    idle_time = parts[3] + parts[4]
-                    total_time = sum(parts)
-                    return idle_time, total_time
-        return 0.0, 0.0
-
-    async def monitor_loop(self):
         self.running = True
-        prev_idle, prev_total = await self.get_cpu_usage()
-        while self.running:
-            await asyncio.sleep(self.interval)
-            curr_idle, curr_total = await self.get_cpu_usage()
-            
-            diff_idle = curr_idle - prev_idle
-            diff_total = curr_total - prev_total
-            
-            cpu_pct = 0.0
-            if diff_total > 0:
-                cpu_pct = (1.0 - (diff_idle / diff_total)) * 100.0
-            
-            mem_total, mem_free = 0, 0
+
+    def get_cpu_usage(self):
+        try:
+            if os.path.exists('/proc/stat'):
+                with open('/proc/stat', 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    if line.startswith('cpu '):
+                        fields = [float(column) for column in line.strip().split()[1:]]
+                        idle_time = fields[3]
+                        total_time = sum(fields)
+                        return {"idle": idle_time, "total": total_time}
+            return {}
+        except Exception as e:
+            logging.error(f"Error reading CPU usage: {e}")
+            return {}
+
+    def get_memory_usage(self):
+        try:
             if os.path.exists('/proc/meminfo'):
+                meminfo = {}
                 with open('/proc/meminfo', 'r') as f:
                     for line in f:
-                        if 'MemTotal' in line:
-                            mem_total = int(line.split()[1])
-                        elif 'MemFree' in line:
-                            mem_free = int(line.split()[1])
-            
-            mem_used_pct = 0.0
-            if mem_total > 0:
-                mem_used_pct = ((mem_total - mem_free) / mem_total) * 100.0
+                        parts = line.split(':')
+                        if len(parts) == 2:
+                            meminfo[parts[0].strip()] = int(parts[1].split()[0])
+                if 'MemTotal' in meminfo and 'MemFree' in meminfo:
+                    return {
+                        "total_kb": meminfo['MemTotal'],
+                        "free_kb": meminfo['MemFree'],
+                        "available_kb": meminfo.get('MemAvailable', meminfo['MemFree'])
+                    }
+            return {}
+        except Exception as e:
+            logging.error(f"Error reading memory usage: {e}")
+            return {}
 
-            metrics = {
-                'timestamp': time.time(),
-                'cpu_percent': round(cpu_pct, 2),
-                'memory_percent': round(mem_used_pct, 2)
-            }
-            print(json.dumps(metrics))
-            prev_idle, prev_total = curr_idle, curr_total
+    def collect_metrics(self):
+        metrics = {
+            "timestamp": time.time(),
+            "cpu": self.get_cpu_usage(),
+            "memory": self.get_memory_usage()
+        }
+        return metrics
+
+    def run(self):
+        logging.info("Starting System Monitor Daemon")
+        while self.running:
+            try:
+                metrics = self.collect_metrics()
+                print(json.dumps(metrics))
+                time.sleep(self.interval)
+            except KeyboardInterrupt:
+                logging.info("Stopping System Monitor Daemon")
+                self.running = False
+            except Exception as e:
+                logging.error(f"Daemon error: {e}")
+                time.sleep(5)
 
 if __name__ == '__main__':
-    monitor = SystemMonitor(interval=2.0)
-    try:
-        asyncio.run(monitor.monitor_loop())
-    except KeyboardInterrupt:
-        pass
+    monitor = SystemMonitor(interval=10)
+    monitor.run()
