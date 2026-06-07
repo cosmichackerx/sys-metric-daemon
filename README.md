@@ -1,21 +1,8 @@
 # sys-metric-daemon
 
-A high-performance, ultra-lightweight performance collection daemon engineered to consume minimal resources. Gathers OS-level execution metrics straight from `/proc` interfaces on Linux environments.
+A modular, high-performance system metrics monitoring daemon designed to run with minimal overhead. It parses standard system metrics directly from `/proc` filesystems on Unix-like environments.
 
 ## Features
-
-- Zero-dependency framework (pure Python standard library execution).
-- Highly modular subsystem directory separation.
-- Instant low-level system parsing metrics.
-
-## Usage
-
-Run the metrics collector natively:
-
-```bash
-python3 src/collector.py
-```
-
-## Configuration
-
-Modify parameter keys located directly inside `config/config.json`.
+- Direct `/proc` parsing to eliminate heavy external dependencies.
+- Modular class structure for easy expansion.
+- Outputs structured JSON metrics to standard output.
